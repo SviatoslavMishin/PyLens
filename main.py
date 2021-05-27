@@ -1,158 +1,80 @@
 import sys
 import os
-import interface
-import logic
-from PyQt5 import QtCore, QtGui, QtWidgets, QtPrintSupport
+from Interface import *
+from GlassCatAnalysis import *
+from DispEquations import *
+from PyQt5 import QtCore, QtGui, QtWidgets
 
-class AppWin(QtWidgets.QMainWindow):
-    
-    lens_kits = []
 
-    def __init__(self, parent=None):
-        QtWidgets.QWidget.__init__(self, parent)
-        self.ui = interface.Ui_MainWindow()
-        self.ui.setupUi(self)
-        self.ui.textEdit.setReadOnly(True)
-        self.ui.pushButton_10.setEnabled(False)
-        self.ui.pushButton_11.setEnabled(False)
+class MyWin(QtWidgets.QMainWindow):
+	SelectedCatalog = [] #Здесь будет храниться выбранный каталог, который загружается функцией loadCatalog
+	def __init__(self, parent=None):
+		QtWidgets.QWidget.__init__(self, parent)
+		self.ui = Ui_MainWindow()
+		self.ui.setupUi(self)
+		self.ui.comboBox_2.addItems(['0.365 (i)', '0.40466 (h)', '0.43583 (g)', '0.47999 (F\')', '0.48613 (F)', '0.54607 (e)', '0.58756 (d)', '0.58929 (D)', '0.6328 (He-Ne)', '0.64385 (C\')', '0.65627 (C)', '0.70652 (r)']) 
+		self.ui.pushButton.clicked.connect(self.loadCatalog)
+		self.ui.pushButton_2.clicked.connect(self.calculate)
 
-        #Подключаем действия к кнопкам редактирования таблиц
-        self.ui.pushButton.clicked.connect(self.add_row)
-        self.ui.pushButton_2.clicked.connect(self.del_row)
-        self.ui.pushButton_3.clicked.connect(self.clear_table)
-        self.ui.pushButton_4.clicked.connect(self.add_row)
-        self.ui.pushButton_5.clicked.connect(self.del_row)
-        self.ui.pushButton_6.clicked.connect(self.clear_table)
-        self.ui.pushButton_7.clicked.connect(self.add_row)
-        self.ui.pushButton_8.clicked.connect(self.del_row)
-        self.ui.pushButton_9.clicked.connect(self.clear_table)
-
-        #Подключаем действие к кнопке "Скомплектовать"
-        self.ui.pushButton_12.clicked.connect(self.make_kits)
-
-        #Подключаем действие к кнопке "Сохранить"
-        self.ui.pushButton_10.clicked.connect(self.save_result)
-
-        #Подключаем действие к кнопке "Печать"
-        self.ui.pushButton_11.clicked.connect(self.print_result)
-       
-    def add_row(self):
-        row_count = 0
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton':
-            row_count = self.ui.tableWidget.rowCount()
-            self.ui.tableWidget.insertRow(row_count)
-        elif sender_name == 'pushButton_4':
-            row_count = self.ui.tableWidget_2.rowCount()
-            self.ui.tableWidget_2.insertRow(row_count)
-        elif sender_name == 'pushButton_7':
-            row_count = self.ui.tableWidget_3.rowCount()
-            self.ui.tableWidget_3.insertRow(row_count)
-    
-    def del_row(self):
-        row_count = 0
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton_2':
-            row_count = self.ui.tableWidget.rowCount()
-            self.ui.tableWidget.setRowCount(row_count-1)
-        elif sender_name == 'pushButton_5':
-            row_count = self.ui.tableWidget_2.rowCount()
-            self.ui.tableWidget_2.setRowCount(row_count-1)
-        elif sender_name == 'pushButton_8':
-            row_count = self.ui.tableWidget_3.rowCount()
-            self.ui.tableWidget_3.setRowCount(row_count-1)
-
-    def clear_table(self):
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton_3':
-            self.ui.tableWidget.clearContents()
-        elif sender_name == 'pushButton_6':
-            self.ui.tableWidget_2.clearContents()
-        elif sender_name == 'pushButton_9':
-            self.ui.tableWidget_3.clearContents()
-
-    def make_kits(self):
-        #Берем данные о толщинах линз из таблиц
-        parts_001 = []
-        parts_103 = []
-        parts_104 = []
-        
-        parts_001_count = self.ui.tableWidget.rowCount()
-        parts_103_count = self.ui.tableWidget_2.rowCount()
-        parts_104_count = self.ui.tableWidget_3.rowCount()
-        for row in range(parts_001_count):
-            
-            if self.ui.tableWidget.item(row, 0) is None or self.ui.tableWidget.item(row, 0).text() == '': #Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_001.append(float(self.ui.tableWidget.item(row, 0).text()))
-
-        for row in range(parts_103_count):
-
-            # Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-            if self.ui.tableWidget_2.item(row, 0) is None or self.ui.tableWidget_2.item(row, 0).text() == '':
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label_2.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_103.append(
-                    float(self.ui.tableWidget_2.item(row, 0).text()))
-        
-        for row in range(parts_104_count):
-
-            # Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-            if self.ui.tableWidget_3.item(row, 0) is None or self.ui.tableWidget_3.item(row, 0).text() == '':
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label_3.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_104.append(
-                    float(self.ui.tableWidget_3.item(row, 0).text()))
-       
-        #Применяем к полученным спискам линз функцию kitmaker из файла logic.py
-        #На выходе получим список комплектов линз - lens_kits
-        AppWin.lens_kits = logic.kitmaker(parts_001, parts_103, parts_104)
-
-        #Выведем результат
-        for lens_kit in AppWin.lens_kits:
-            self.ui.textEdit.append(str(lens_kit))
-
-        #Делаем активными кнопки Сохранить и Печать
-        self.ui.pushButton_10.setEnabled(True)
-        self.ui.pushButton_11.setEnabled(True)
-
-    def print_result(self):
-        print_dialog = QtPrintSupport.QPrintDialog()
-        if print_dialog.exec_() == QtWidgets.QDialog.Accepted:
-            self.ui.textEdit.document().print_(print_dialog.printer())
-         
-
-    def save_result(self):
-        file_name = QtWidgets.QFileDialog.getSaveFileName(filter='*.txt')[0]
-        with open(file_name, 'w') as f:
-            for lens_kit in AppWin.lens_kits:
-                f.write("%s\n" % lens_kit)
-
+	def loadCatalog(self): #Изменяет выбранный каталог с каждым нажатием кнопки pushButton
+		self.ui.comboBox.clear() #Очистка списка марок стекол
+		catalog_path = QtWidgets.QFileDialog.getOpenFileName()[0] #Получаем имя каталога
+		MyWin.SelectedCatalog = get_GlassCatalog(catalog_path) #Принимаем данный каталог для использования
+		self.ui.lineEdit_3.setText(os.path.basename(catalog_path)) #Отображаем имя выбранного каталога
+		self.ui.lineEdit_3.setReadOnly(True) 
+		self.ui.comboBox.addItems(get_Glasses(MyWin.SelectedCatalog)) #Заполняем список доступных по каталогу марок стекол 
+		self.ui.comboBox.setEnabled(True)
+		self.ui.groupBox_3.setEnabled(True)
+		self.ui.pushButton_2.setEnabled(True)
+			
+	def calculate(self):
+		#Получение введенных пользователем значений диаметра детали и алгебраической суммы колец
+		Diameter = float(self.ui.lineEdit.text())
+		Fringes = float(self.ui.lineEdit_2.text())
+		#Запись выбранной пользователем марки стекла
+		SelectedGlass = 'NM '+str(self.ui.comboBox.currentText())
+		#Поиск местонахождения этой марки стекла в выбранном каталоге
+		GlassPosition = get_GlassPosition(SelectedGlass, MyWin.SelectedCatalog)
+		#Извлечение типа дисперсионной формулы и её коэффициентов
+		DispCode = get_DispersionCode(GlassPosition, MyWin.SelectedCatalog)
+		DispCoeffs = get_DispCoeffs(GlassPosition, MyWin.SelectedCatalog)
+		#Запись выбранного пользователем значения длины волны
+		Wave = (self.ui.comboBox_2.currentText()).split(' ')
+		Wave = float(Wave[0])
+		#Вычисление показателя преломления в зависимости от типа дисперсионной формулы стекла по каталогу
+		if DispCode == 1:
+			refIndex = schott(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5])
+		elif DispCode == 2:
+			refIndex = sellmeier1(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5])
+		elif DispCode == 3:
+			refIndex = herzberger(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5])
+		elif DispCode == 4:
+			refIndex = sellmeier2(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4])
+		elif DispCode == 5:
+			refIndex = conrady(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2])
+		elif DispCode == 6:
+			refIndex = sellmeier3(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5], DispCoeffs[6], DispCoeffs[7])
+		elif DispCode == 7:
+			refIndex = handbook1(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3])		
+		elif DispCode == 8:
+			refIndex = handbook2(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3])	
+		elif DispCode == 9:
+			refIndex = sellmeier4(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4])	
+		elif DispCode == 10:
+			refIndex = extended(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5], DispCoeffs[6], DispCoeffs[7])
+		elif DispCode == 11:
+			refIndex = sellmeier5(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5], DispCoeffs[6], DispCoeffs[7], DispCoeffs[8], DispCoeffs[9])
+		elif DispCode == 12:
+			refIndex = extended2(Wave, DispCoeffs[0], DispCoeffs[1], DispCoeffs[2], DispCoeffs[3], DispCoeffs[4], DispCoeffs[5], DispCoeffs[6], DispCoeffs[7])				
+		FocalLength = (1000*Diameter*Diameter)/(4*Wave*(refIndex-1)*Fringes)	
+		#Вывод результата в поле Focal Length
+		self.ui.lineEdit_4.setText(str("%.3f"%(FocalLength/1000)) + " m")
 
 def main():
-    app = QtWidgets.QApplication(sys.argv)
-    window = AppWin()
-    window.show()
-    app.exec_()
+		app = QtWidgets.QApplication(sys.argv)
+		window = MyWin()
+		window.show()
+		app.exec_()
 
-if __name__ == "__main__":
-    main()
-
-
-        
+if __name__=="__main__":
+	main()
