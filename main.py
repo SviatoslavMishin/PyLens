@@ -1,148 +1,112 @@
+# -*- coding: utf-8 -*-
+'''
+
+'''
 import sys
 import os
-import interface
-import logic
-from PyQt5 import QtCore, QtGui, QtWidgets, QtPrintSupport
+import app_gui
+import spectrum_analysis as spectr
+from PyQt5 import QtCore, QtGui, QtWidgets
+from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
+from plot_to_widget import MyCanvas
+
 
 class AppWin(QtWidgets.QMainWindow):
-    
-    lens_kits = []
+    current_file = []
 
     def __init__(self, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
-        self.ui = interface.Ui_MainWindow()
+        self.ui = app_gui.Ui_MainWindow()
         self.ui.setupUi(self)
-        self.ui.textEdit.setReadOnly(True)
-        self.ui.pushButton_10.setEnabled(False)
-        self.ui.pushButton_11.setEnabled(False)
+        self.ui.pushButton.clicked.connect(self.load_file)
+        self.ui.pushButton_2.clicked.connect(self.calc)
 
-        #Подключаем действия к кнопкам редактирования таблиц
-        self.ui.pushButton.clicked.connect(self.add_row)
-        self.ui.pushButton_2.clicked.connect(self.del_row)
-        self.ui.pushButton_3.clicked.connect(self.clear_table)
-        self.ui.pushButton_4.clicked.connect(self.add_row)
-        self.ui.pushButton_5.clicked.connect(self.del_row)
-        self.ui.pushButton_6.clicked.connect(self.clear_table)
-        self.ui.pushButton_7.clicked.connect(self.add_row)
-        self.ui.pushButton_8.clicked.connect(self.del_row)
-        self.ui.pushButton_9.clicked.connect(self.clear_table)
+    def load_file(self):
+        # Выбор файла через диалог "Открыть файл" и отображение имени этого файла
+        # Получаем имя файла измерений
+        file_name = QtWidgets.QFileDialog.getOpenFileName()[0]
+        # Принимаем данный файл для использования
+        AppWin.current_file = spectr.load_spectrum_file(file_name)
+        # Отображаем имя выбранного файла
+        self.ui.lineEdit.setText(os.path.basename(file_name))
 
-        #Подключаем действие к кнопке "Скомплектовать"
-        self.ui.pushButton_12.clicked.connect(self.make_kits)
+        # Заполнение полей в разделе Measurement Info
+        # Дата измерения
+        date = spectr.get_info(AppWin.current_file)[0]
+        self.ui.label_2.setText(date)
+        self.ui.label_2.adjustSize()
 
-        #Подключаем действие к кнопке "Сохранить"
-        self.ui.pushButton_10.clicked.connect(self.save_result)
+        # Время измерения
+        time = spectr.get_info(AppWin.current_file)[1]
+        self.ui.label_3.setText(time)
+        self.ui.label_3.adjustSize()
 
-        #Подключаем действие к кнопке "Печать"
-        self.ui.pushButton_11.clicked.connect(self.print_result)
-       
-    def add_row(self):
-        row_count = 0
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton':
-            row_count = self.ui.tableWidget.rowCount()
-            self.ui.tableWidget.insertRow(row_count)
-        elif sender_name == 'pushButton_4':
-            row_count = self.ui.tableWidget_2.rowCount()
-            self.ui.tableWidget_2.insertRow(row_count)
-        elif sender_name == 'pushButton_7':
-            row_count = self.ui.tableWidget_3.rowCount()
-            self.ui.tableWidget_3.insertRow(row_count)
-    
-    def del_row(self):
-        row_count = 0
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton_2':
-            row_count = self.ui.tableWidget.rowCount()
-            self.ui.tableWidget.setRowCount(row_count-1)
-        elif sender_name == 'pushButton_5':
-            row_count = self.ui.tableWidget_2.rowCount()
-            self.ui.tableWidget_2.setRowCount(row_count-1)
-        elif sender_name == 'pushButton_8':
-            row_count = self.ui.tableWidget_3.rowCount()
-            self.ui.tableWidget_3.setRowCount(row_count-1)
+        # Режим измерения: R - отражение, T - пропускание
+        mode = spectr.get_info(AppWin.current_file)[2]
+        self.ui.label_4.setText(mode)
+        self.ui.label_4.adjustSize()
 
-    def clear_table(self):
-        sender = self.sender()
-        sender_name = sender.objectName()
-        if sender_name == 'pushButton_3':
-            self.ui.tableWidget.clearContents()
-        elif sender_name == 'pushButton_6':
-            self.ui.tableWidget_2.clearContents()
-        elif sender_name == 'pushButton_9':
-            self.ui.tableWidget_3.clearContents()
+        # Поляризация
+        polarization = spectr.get_info(AppWin.current_file)[4]
+        self.ui.label_5.setText(polarization)
+        self.ui.label_5.adjustSize()
 
-    def make_kits(self):
-        #Берем данные о толщинах линз из таблиц
-        parts_001 = []
-        parts_103 = []
-        parts_104 = []
-        
-        parts_001_count = self.ui.tableWidget.rowCount()
-        parts_103_count = self.ui.tableWidget_2.rowCount()
-        parts_104_count = self.ui.tableWidget_3.rowCount()
-        for row in range(parts_001_count):
-            
-            if self.ui.tableWidget.item(row, 0) is None or self.ui.tableWidget.item(row, 0).text() == '': #Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_001.append(float(self.ui.tableWidget.item(row, 0).text()))
+        # Предельные длины волн в измерении
+        waves = spectr.get_waves(AppWin.current_file)
+        self.ui.label_6.setText('Min. wave: ' + str(min(waves)) + ' nm')
+        self.ui.label_6.adjustSize()
+        self.ui.label_7.setText('Max. wave: ' + str(max(waves)) + 'nm')
+        self.ui.label_7.adjustSize()
 
-        for row in range(parts_103_count):
+        # Заполнение ComboBox'ов с начальной (From) и конечной (To) длиной волны для вычислений
 
-            # Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-            if self.ui.tableWidget_2.item(row, 0) is None or self.ui.tableWidget_2.item(row, 0).text() == '':
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label_2.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_103.append(
-                    float(self.ui.tableWidget_2.item(row, 0).text()))
-        
-        for row in range(parts_104_count):
+        # Начальная длина волны From
+        self.ui.comboBox.clear()
+        self.ui.comboBox.addItems(str(i) for i in waves)
+        self.ui.comboBox.setEnabled(True)
 
-            # Когда инициализировалась таблица - в ячейках None, а если просто туда не впечатали, то уже будет пустая строка
-            if self.ui.tableWidget_3.item(row, 0) is None or self.ui.tableWidget_3.item(row, 0).text() == '':
-                error_msg = QtWidgets.QErrorMessage()
-                error_msg.showMessage(
-                    'Ошибка! Заполните все ячейки в таблице ' + self.ui.label_3.text())
-                error_msg.exec_()
-                return
-            else:
-                parts_104.append(
-                    float(self.ui.tableWidget_3.item(row, 0).text()))
-       
-        #Применяем к полученным спискам линз функцию kitmaker из файла logic.py
-        #На выходе получим список комплектов линз - lens_kits
-        AppWin.lens_kits = logic.kitmaker(parts_001, parts_103, parts_104)
+        # Конечная длина волны To в зависимости от выбранной во From
+        start_wave_index = self.ui.comboBox.findText(
+            self.ui.comboBox.currentText())
+        self.ui.comboBox_2.addItems(str(i)
+                                    for i in waves[start_wave_index + 1::])
+        self.ui.comboBox_2.setEnabled(True)
+        self.ui.pushButton_2.setEnabled(True)
 
-        #Выведем результат
-        for lens_kit in AppWin.lens_kits:
-            self.ui.textEdit.append(str(lens_kit))
+        def update_end_waves():
+            self.ui.comboBox_2.clear()
+            start_wave_index = self.ui.comboBox.findText(
+                self.ui.comboBox.currentText())
+            for i in range(start_wave_index + 1, self.ui.comboBox.count()):
+                self.ui.comboBox_2.addItem(self.ui.comboBox.itemText(i))
 
-        #Делаем активными кнопки Сохранить и Печать
-        self.ui.pushButton_10.setEnabled(True)
-        self.ui.pushButton_11.setEnabled(True)
+        self.ui.comboBox.currentTextChanged.connect(update_end_waves)
 
-    def print_result(self):
-        print_dialog = QtPrintSupport.QPrintDialog()
-        if print_dialog.exec_() == QtWidgets.QDialog.Accepted:
-            self.ui.textEdit.document().print_(print_dialog.printer())
-         
-
-    def save_result(self):
-        file_name = QtWidgets.QFileDialog.getSaveFileName(filter='*.txt')[0]
-        with open(file_name, 'w') as f:
-            for lens_kit in AppWin.lens_kits:
-                f.write("%s\n" % lens_kit)
+    def calc(self):
+        # Получение исходных данных: список длин волн и список соответствующих им спектральных коэффициентов
+        waves = spectr.get_waves(AppWin.current_file)
+        data = spectr.get_data(AppWin.current_file)
+        min_wave = float(self.ui.comboBox.currentText())
+        max_wave = float(self.ui.comboBox_2.currentText())
+        # Вычисление интегрального коэффициента
+        result = spectr.calc_integral_coeff(data, waves, min_wave, max_wave)
+        # Вывод результата в зависимости от режима измерения: отражение (R) или пропускание (T)
+        mode = spectr.get_info(AppWin.current_file)[2]
+        if mode == 'Mode: R':
+            self.ui.lineEdit_3.clear()
+            self.ui.lineEdit_3.setText('R = ' + str('%.3f' % result) + ' %')
+        elif mode == 'Mode: T':
+            self.ui.lineEdit_3.clear()
+            self.ui.lineEdit_3.setText('T = ' + str('%.3f' % result) + ' %')
+        # Рисуем график в области widget
+        # Создаем переменную, хранящую рисунок графика
+        self.fig = spectr.draw_plot(waves, data, mode, min_wave, max_wave)
+        self.place_for_plot = QtWidgets.QVBoxLayout(self.ui.PlotWidget)
+        self.canvas = MyCanvas(self.fig)
+        self.place_for_plot.addWidget(self.canvas)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        self.place_for_plot.addWidget(self.toolbar)
+        self.place_for_plot.deleteLater()
 
 
 def main():
@@ -151,8 +115,6 @@ def main():
     window.show()
     app.exec_()
 
+
 if __name__ == "__main__":
     main()
-
-
-        
